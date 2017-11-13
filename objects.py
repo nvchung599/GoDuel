@@ -42,6 +42,7 @@ class Player(GameObject):
 
     def __init__(self, alliance, position, object_screen_coord_sys):
         super().__init__('player_image.png', position, object_screen_coord_sys)
+        self.image_alive = load_image_convert_alpha('player_image.png')
         self.image_dead = load_image_convert_alpha('dead.png')
         self.angle = 90  # should coincide with image file
         self.discreet_angle = 90
@@ -50,14 +51,14 @@ class Player(GameObject):
         self.image_small_exhaust = load_image_convert_alpha('small_exhaust.png')
         self.image_medium_exhaust = load_image_convert_alpha('medium_exhaust.png')
         self.image_large_exhaust = load_image_convert_alpha('large_exhaust.png')
-        self.myfont = pygame.font.SysFont('Comic Sans MS', 15)
+        self.myfont = pygame.font.SysFont('Calibri', 15)
 
         # maneuverability
-        self.throttle_acceleration = 700 # units/s^2
-        self.throttle_afterburn_acceleration = 1300
-        self.turn_speed = 400 # degrees/s
-        self.max_speed = 400  # units/s
-        self.max_afterburn_speed = 550
+        self.throttle_acceleration = 650 # units/s^2
+        self.throttle_afterburn_acceleration = 1000
+        self.turn_speed = 350 # degrees/s
+        self.max_speed = 350  # units/s
+        self.max_afterburn_speed = 700
         self.current_action = {'throttle': 0, 'turn': 0, 'trigger': 0, 'afterburn':0}
 
         # game settings
@@ -65,14 +66,14 @@ class Player(GameObject):
         self.alliance = alliance
         self.record = 0
         self.shots = []
-        self.gun_cool_down_timer = 0.2 # seconds
+        self.gun_cool_down_timer = 0.1 # seconds
         self.gun_cool_down_status = 0
         self.alive = True
         self.energy = 1000
         self.energy_display = self.energy
         self.max_energy = self.energy
-        self.recharge_rate = 200 # energy/s
-        self.bullet_damage = 200
+        self.recharge_rate = 180 # energy/s
+        self.bullet_damage = 250
         self.bullet_consumption = 50
         self.afterburn_drain = 300 # energy/s
 
@@ -173,6 +174,13 @@ class Player(GameObject):
         self.angle = 0
         self.image = self.image_dead
 
+    def revive(self):
+        self.alive = True
+        self.energy = self.max_energy
+        self.image = self.image_alive
+        self.velocity = [0, 0]
+        self.shots.clear()
+
     def draw(self, screen):
 
         self.predraw_transform()
@@ -261,24 +269,13 @@ class Bullet(GameObject):
         draw_centered(self.transform_object_image(), screen, self.transformed_position)
 
 
-class Brick(GameObject):
-
-    def __init__(self, position, object_screen_coord_sys):
-        super().__init__('wall.png', position, object_screen_coord_sys)
-        self.width = 32 # half of player model
-
-    def draw(self, screen):
-        self.predraw_transform()
-        draw_centered(self.image, screen, self.position)
-
-
 class Shot(object):
 
     def __init__(self, position, velocity, angle, object_screen_coord_sys, screen):
 
         self.screen = screen
         self.bullet_lifetime = 5 # seconds
-        self.bullet_speed = 200
+        self.bullet_speed = 550
 
         #right and left bullets
         bullet_1_position = [position[0] + 25 * math.cos(math.radians(angle - 90)),
@@ -310,4 +307,15 @@ class Shot(object):
     def draw(self):
         for bullet in self.bullets:
             bullet.draw(self.screen)
+
+
+class Brick(GameObject):
+
+    def __init__(self, position, object_screen_coord_sys):
+        super().__init__('wall.png', position, object_screen_coord_sys)
+        self.width = 32 # half of player model
+
+    def draw(self, screen):
+        self.predraw_transform()
+        draw_centered(self.image, screen, self.position)
 

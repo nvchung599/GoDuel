@@ -23,8 +23,8 @@ class MyGame(object):
     def __init__(self):
         pygame.init()
         pygame.font.init()
-        self.width = 600
-        self.height = 600
+        self.width = 1500
+        self.height = 900
         self.screen = pygame.display.set_mode((self.width, self.height))
         self.timescale = 1
         self.FPS = 60 * self.timescale # FPS and timescale should scale together
@@ -40,7 +40,7 @@ class MyGame(object):
         self.players.append(Player(2, [self.width/2, self.height/2], [self.width, self.height]))
 
         self.players[0].angle = 45
-        
+
         reference_brick = Brick([0, 0], [0, 0])
         self.brick_graphic_width = reference_brick.width
         self.player_graphic_width = self.players[0].radius * 2
@@ -49,6 +49,14 @@ class MyGame(object):
         self.player_boundaries = {'east': 0, 'north': 0, 'west': 0, 'south': 0} # should be 4 integer limits, with cardinal direction identity, for boundary in boundaries.items()
         self.bullet_boundaries = {'east': 0, 'north': 0, 'west': 0, 'south': 0}
         self.generate_duelbox()
+        self.myfont = pygame.font.SysFont('Calibri', 15)
+        self.match_active = True
+        self.match_counter = 1
+        self.restart_timer = 0
+
+        self.duelbox_line_1 = None
+        self.duelbox_line_2 = None
+        self.duelbox_line_3 = None
 
     def run(self):
 
@@ -70,6 +78,9 @@ class MyGame(object):
 
             self.screen.fill(self.bg_color)
 
+            for brick in self.bricks:
+                brick.draw(self.screen)
+
             for player in self.players:
 
                 player.current_action = self.keymap(keys, player.alliance)
@@ -87,12 +98,9 @@ class MyGame(object):
                 player.recharge_energy(delta_t)
                 player.draw(self.screen) # draws this player on the screen
 
-            self.check_match_status()
+            self.check_match_status(delta_t)
 
             self.detect_collision_bullet(delta_t)
-
-            for brick in self.bricks:
-                brick.draw(self.screen)
 
             pygame.display.update()
 
@@ -312,28 +320,66 @@ class MyGame(object):
 
         return actions
 
-    def check_match_status(self):
-        living_players = 0
-        lingering_shots = 0
-        for player in self.players:
-            if player.alive:
-                living_players += 1
-            else:
-                lingering_shots = len(player.shots)
+    def check_match_status(self, delta_t):
 
-        if living_players < 2 and lingering_shots == 0:
+        if self.match_active:
 
-            winning_alliance = 0
+            self.duelbox_line_2 = self.myfont.render('MATCH ' + str(self.match_counter) + ' IN PROGRESS', False, (255, 255, 255))
 
+            living_players = 0
+            lingering_shots = 0
             for player in self.players:
                 if player.alive:
-                    player.record += 1
-                    winning_alliance = player.alliance
+                    living_players += 1
+                else:
+                    lingering_shots = len(player.shots)
 
-            if winning_alliance == 0:
-                print('MATCH TIE')
-            else:
-                print('PLAYER %d WINS' % winning_alliance)
+            if living_players < 2 and lingering_shots == 0:
+
+                self.match_active = False
+
+                self.restart_timer = 3
+
+                winning_alliance = 0
+
+                for player in self.players:
+                    if player.alive:
+                        player.record += 1
+                        winning_alliance = player.alliance
+
+                if winning_alliance == 0:
+                    self.duelbox_line_2 = self.myfont.render('MATCH TIE', False, (255, 255, 255))
+                else:
+                    self.duelbox_line_2 = self.myfont.render('PLAYER ' + str(winning_alliance) + ' WINS', False, (255, 255, 255))
+
+                self.match_counter += 1
+        else:
+            self.duelbox_line_3 = self.myfont.render('NEXT ROUND IN ' + str(int(self.restart_timer)), False, (255, 255, 255))
+            self.restart_timer -= delta_t
+            draw_centered(self.duelbox_line_3, self.screen, [self.width / 2, 140])
+
+        self.duelbox_line_1 = self.myfont.render(
+            'PLAYER 1:' + str(self.players[0].record) + '      PLAYER 2:' + str(self.players[1].record), False,
+            (255, 255, 255))
+        draw_centered(self.duelbox_line_1, self.screen, [self.width / 2, 100])
+
+        draw_centered(self.duelbox_line_2, self.screen, [self.width / 2, 120])
+
+        if self.restart_timer < 0:
+            self.restart_timer = 0
+            self.restart()
+
+    def restart(self):
+        self.match_active = True
+        for player in self.players:
+            player.revive()
+
+        self.players[0].position = [100,100]
+        self.players[0].angle = 225
+
+        self.players[1].position = [self.width - 150, self.height - 150]
+        self.players[1].angle = 45
+
 
             #print('match is over')
             #reward living player (if any) with point
