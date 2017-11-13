@@ -6,12 +6,9 @@ def load_image_convert_alpha(filename):
     """Load an image with the given filename from the images directory"""
     return pygame.image.load(os.path.join('images', filename)).convert_alpha()
 
-
-
 def load_sound(filename):
     """Load a sound with the given filename from the sounds directory"""
     return pygame.mixer.Sound(os.path.join('sounds', filename))
-
 
 def draw_centered(surface1, surface2, position):
     """Draw surface1 onto surface2 with center at position"""
@@ -19,12 +16,10 @@ def draw_centered(surface1, surface2, position):
     rect = rect.move(position[0]-rect.width//2, position[1]-rect.height//2)
     surface2.blit(surface1, rect)
 
-
 def rotate_center(image, angle):
         """rotate the given image around its center & return an image & rect, works in degrees not radians"""
         rotate_image = pygame.transform.rotate(image, angle)
         return rotate_image
-
 
 def distance(p, q): # p and q are XY coordinates in the form of arrays/lists
     """Helper function to calculate distance between 2 points"""
