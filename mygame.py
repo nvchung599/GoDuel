@@ -23,8 +23,8 @@ class MyGame(object):
     def __init__(self):
         pygame.init()
         pygame.font.init()
-        self.width = 1500
-        self.height = 900
+        self.width = 1000
+        self.height = 1000
         self.screen = pygame.display.set_mode((self.width, self.height))
         self.timescale = 1
         self.FPS = 60 * self.timescale # FPS and timescale should scale together
@@ -36,10 +36,11 @@ class MyGame(object):
 
         # TODO automate player placement in duel box
         self.players = []
-        self.players.append(Player(1, [self.width/2, 100], [self.width, self.height]))
+        self.players.append(Player(1, [self.width/2, self.height/2], [self.width, self.height]))
         self.players.append(Player(2, [self.width/2, self.height/2], [self.width, self.height]))
 
-        self.players[0].angle = 45
+        self.players[0].angle = 0
+        self.players[1].angle = 0
 
         reference_brick = Brick([0, 0], [0, 0])
         self.brick_graphic_width = reference_brick.width
@@ -58,12 +59,21 @@ class MyGame(object):
         self.duelbox_line_2 = None
         self.duelbox_line_3 = None
 
+        self.error_total = 0
+        self.error_prev = 0
+
+        self.pwm_pulse_index = 0
+        self.pwm_pulse_width = 10 # frames
+        self.pwm_pulse_array = [0] * self.pwm_pulse_width
+        self.frame_count = 0
+
     def run(self):
 
         running = True
 
         while running:
 
+            self.frame_count += 1
             milliseconds = self.clock.tick(self.FPS)  # milliseconds passed since last frame
             delta_t = (milliseconds / 1000.0) * self.timescale  # seconds passed since last frame (float)
             self.playtime += delta_t
@@ -83,7 +93,16 @@ class MyGame(object):
 
             for player in self.players:
 
-                player.current_action = self.keymap(keys, player.alliance)
+                if player.alliance == 1:
+                    player.current_action = self.keymap(keys, player.alliance)
+                else:
+                    player.current_action = self.keymap_auto_1d(delta_t, self.players[0].position[0], self.players[1].position[0])
+                    # player.current_action = self.keymap_auto_2d(delta_t,
+                    #                                             self.players[0].position[0],
+                    #                                             self.players[0].position[1],
+                    #                                             self.players[1].position[0],
+                    #                                             self.players[1].position[1])
+
                 player.maneuver(delta_t)
                 player.shoot(self.screen, delta_t)
                 for shot in player.shots:
@@ -263,7 +282,13 @@ class MyGame(object):
 
             player.shots = refreshed_shots
 
-    def keymap(self, keys, alliance): #add input for player 1 or 2
+    def keymap(self, keys, alliance):
+
+        """
+        :param keys: key strokes
+        :param alliance: identifies player 1 or 2
+        :return: a dictionary mapping specific actions to -1, 0, or 1
+        """
 
         if alliance == 1:
             left_bool = keys[pygame.K_LEFT]
@@ -319,6 +344,126 @@ class MyGame(object):
         actions = {'turn': turn, 'throttle': throttle, 'afterburn': afterburn, 'trigger': trigger}
 
         return actions
+
+    def keymap_auto_1d(self, delta_t, x_target, x_agent):
+
+        """
+        :param x_target: other player's x coordinate
+        :param x_agent: this player's x coordinate
+        :param keys: key strokes
+        :return: a dictionary mapping specific actions to -1, 0, or 1
+        """
+
+        error = x_agent - x_target
+        self.error_total += error * delta_t
+        error_rate = (error - self.error_prev) / delta_t
+        self.error_prev = error
+
+        # TODO tune gains
+        kp = 15
+        ki = 1
+        kd = 30
+
+        instant_pid_sum = (kp * error) + (ki * self.error_total) + (kd * error_rate)
+
+        print(instant_pid_sum)
+
+        if self.frame_count % self.pwm_pulse_width == 0:
+            # TODO replace 100 with some variable normalizer, tune viscosity coefficient
+            throttle_dutycycle = instant_pid_sum/10000
+
+            self.generate_pwm_pulse(throttle_dutycycle)
+            self.pwm_pulse_index = 0
+
+            # print(self.players[1].calc_speed() / self.players[1].max_speed)
+            # print(viscous_dutycycle)
+
+
+        # print(error, "   ", self.error_total, "   ", error_rate)
+        # print(instant_pid_sum)
+
+        turn = 0
+        throttle = self.pwm_pulse_array[self.pwm_pulse_index]
+        afterburn = 0
+        trigger = 0
+
+        self.pwm_pulse_index += 1
+
+        actions = {'turn': turn, 'throttle': throttle, 'afterburn': afterburn, 'trigger': trigger}
+
+        return actions
+
+    def keymap_auto_2d(self, delta_t, x_target, y_target, x_agent, y_agent):
+
+        """
+        :param x_target: other player's x coordinate
+        :param x_agent: this player's x coordinate
+        :param keys: key strokes
+        :return: a dictionary mapping specific actions to -1, 0, or 1
+        """
+
+        error = -distance([x_target, y_target], [x_agent, y_agent])
+        self.error_total += error * delta_t
+        error_rate = (error - self.error_prev) / delta_t
+        self.error_prev = error
+
+        # error = x_agent - x_target
+        # self.error_total += error * delta_t
+        # error_rate = (error - self.error_prev) / delta_t
+        # self.error_prev = error
+
+        kp = 15
+        ki = 1
+        kd = 30
+
+        instant_pid_sum = (kp * error) + (ki * self.error_total) + (kd * error_rate)
+
+        if self.frame_count % self.pwm_pulse_width == 0:
+            # TODO replace 100 with some variable normalizer, tune viscosity coefficient
+            throttle_dutycycle = instant_pid_sum/10000
+
+            self.generate_pwm_pulse(throttle_dutycycle)
+            self.pwm_pulse_index = 0
+
+            # print(self.players[1].calc_speed() / self.players[1].max_speed)
+            # print(viscous_dutycycle)
+
+
+        # print(error, "   ", self.error_total, "   ", error_rate)
+        # print(instant_pid_sum)
+
+        turn = 0
+        throttle = self.pwm_pulse_array[self.pwm_pulse_index]
+        afterburn = 0
+        trigger = 0
+
+        self.pwm_pulse_index += 1
+
+        actions = {'turn': turn, 'throttle': throttle, 'afterburn': afterburn, 'trigger': trigger}
+
+        return actions
+
+    def generate_pwm_pulse(self, throttle_dutycycle):
+
+        """ prepares the next pulse, summing throttle and viscous forces """
+
+        throttle_frames = round(throttle_dutycycle*self.pwm_pulse_width)
+
+        if throttle_frames > self.pwm_pulse_width:
+            throttle_frames = self.pwm_pulse_width
+        elif throttle_frames < -self.pwm_pulse_width:
+            throttle_frames = -self.pwm_pulse_width
+
+        for i in range(self.pwm_pulse_width):
+            self.pwm_pulse_array[i] = 0
+
+        if throttle_frames > 0:
+            for i in range(throttle_frames):
+                self.pwm_pulse_array[i] += -1
+        else:
+            for i in range(-throttle_frames):
+                self.pwm_pulse_array[i] += 1
+
 
     def check_match_status(self, delta_t):
 

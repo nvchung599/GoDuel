@@ -56,7 +56,7 @@ class Player(GameObject):
         # maneuverability
         self.throttle_acceleration = 650 # units/s^2
         self.throttle_afterburn_acceleration = 1000
-        self.turn_speed = 350 # degrees/s
+        self.turn_speed = 250 # degrees/s
         self.max_speed = 350  # units/s
         self.max_afterburn_speed = 700
         self.current_action = {'throttle': 0, 'turn': 0, 'trigger': 0, 'afterburn':0}
@@ -66,7 +66,7 @@ class Player(GameObject):
         self.alliance = alliance
         self.record = 0
         self.shots = []
-        self.gun_cool_down_timer = 0.1 # seconds
+        self.gun_cool_down_timer = 0.12 # seconds
         self.gun_cool_down_status = 0
         self.alive = True
         self.energy = 1000
@@ -83,12 +83,15 @@ class Player(GameObject):
         self.transformed_angle = -self.discreet_angle
 
     def maneuver(self, time_between_frames):
+        """
+        Update positions, angle, velocity based on current player actions/keystrokes.
+        recall that 'maneuver actions' contain one of the values: -1, 0, 1
+        """
 
         if not self.alive:
             return
 
-        # input for either maneuver should be: -1, 0, 1
-
+        # determine acceleration and speed limit for this instant
         if self.current_action['afterburn'] and self.energy > time_between_frames * self.afterburn_drain:
             instantaneous_max_speed = self.max_afterburn_speed
             instantaneous_acceleration = self.throttle_afterburn_acceleration
@@ -96,38 +99,24 @@ class Player(GameObject):
             instantaneous_max_speed = self.max_speed
             instantaneous_acceleration = self.throttle_acceleration
 
-
-
+        # velocity update
         self.velocity[0] += math.cos(math.radians(self.discreet_angle))*instantaneous_acceleration*time_between_frames*self.current_action['throttle']
         self.velocity[1] += math.sin(math.radians(self.discreet_angle))*instantaneous_acceleration*time_between_frames*self.current_action['throttle']
 
         # max speed check and adjustment
-
-
-
         instantaneous_speed = self.calc_speed()
-
         if instantaneous_speed > instantaneous_max_speed:
             speed_reduction = instantaneous_max_speed/instantaneous_speed
             self.velocity[0] *= speed_reduction
             self.velocity[1] *= speed_reduction
 
+        # position update
         self.position[0] += self.velocity[0]*time_between_frames
         self.position[1] += self.velocity[1]*time_between_frames
 
+        # angle update
         self.angle += self.turn_speed*time_between_frames*self.current_action['turn']
         self.discreet_angle = round(self.angle/9)*9
-
-        # have current pos and vel
-        # take input from mygame
-        #     decision branch to apply what maneuver
-        # apply maneuver, get new pos and vel
-        # modify this objects position
-        # modify this objects velocity
-        # detect collision (call class method)
-        #     return collision code
-        #     recalculate if wall collision
-        #         detect collision again for corner case
 
     def shoot(self, screen, delta_t):
 
@@ -275,7 +264,7 @@ class Shot(object):
 
         self.screen = screen
         self.bullet_lifetime = 5 # seconds
-        self.bullet_speed = 550
+        self.bullet_speed = 700
 
         #right and left bullets
         bullet_1_position = [position[0] + 25 * math.cos(math.radians(angle - 90)),
