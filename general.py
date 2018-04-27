@@ -24,3 +24,6 @@ def rotate_center(image, angle):
 def distance(p, q): # p and q are XY coordinates in the form of arrays/lists
     """Helper function to calculate distance between 2 points"""
     return math.sqrt((p[0]-q[0])**2 + (p[1]-q[1])**2)
+
+def vector_magnitude(x, y):
+    return math.sqrt(x**2 + y**2)

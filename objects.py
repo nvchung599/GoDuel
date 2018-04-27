@@ -232,6 +232,11 @@ class Player(GameObject):
 
         # given throttle and turn states, also draw exhaust under player image
 
+    def damp(self, viscosity_coefficient):
+        self.velocity[0] = self.velocity[0] * (1 - viscosity_coefficient)
+        self.velocity[1] = self.velocity[1] * (1 - viscosity_coefficient)
+
+
 
 class Bullet(GameObject):
 

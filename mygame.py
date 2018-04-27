@@ -62,10 +62,14 @@ class MyGame(object):
         self.error_total = 0
         self.error_prev = 0
 
+        self.error_angle_prev = 0
+
         self.pwm_pulse_index = 0
         self.pwm_pulse_width = 10 # frames
         self.pwm_pulse_array = [0] * self.pwm_pulse_width
         self.frame_count = 0
+
+        self.viscosity_coefficient = 0.005
 
     def run(self):
 
@@ -96,13 +100,14 @@ class MyGame(object):
                 if player.alliance == 1:
                     player.current_action = self.keymap(keys, player.alliance)
                 else:
-                    player.current_action = self.keymap_auto_1d(delta_t, self.players[0].position[0], self.players[1].position[0])
-                    # player.current_action = self.keymap_auto_2d(delta_t,
-                    #                                             self.players[0].position[0],
-                    #                                             self.players[0].position[1],
-                    #                                             self.players[1].position[0],
-                    #                                             self.players[1].position[1])
+                    # player.current_action = self.keymap_auto_1d(delta_t, self.players[0].position[0], self.players[1].position[0])
+                    player.current_action = self.keymap_auto_2d(delta_t,
+                                                                self.players[0].position[0],
+                                                                self.players[0].position[1],
+                                                                self.players[1].position[0],
+                                                                self.players[1].position[1])
 
+                player.damp(self.viscosity_coefficient)
                 player.maneuver(delta_t)
                 player.shoot(self.screen, delta_t)
                 for shot in player.shots:
@@ -366,8 +371,6 @@ class MyGame(object):
 
         instant_pid_sum = (kp * error) + (ki * self.error_total) + (kd * error_rate)
 
-        print(instant_pid_sum)
-
         if self.frame_count % self.pwm_pulse_width == 0:
             # TODO replace 100 with some variable normalizer, tune viscosity coefficient
             throttle_dutycycle = instant_pid_sum/10000
@@ -402,40 +405,90 @@ class MyGame(object):
         :return: a dictionary mapping specific actions to -1, 0, or 1
         """
 
+        distance_magnitude = distance([x_target, y_target], [x_agent, y_agent])
+
+        # agent to target unit vector
+        if distance_magnitude != 0:
+            target_unit_vector = [(x_target - x_agent) / distance_magnitude, (y_target - y_agent) / distance_magnitude]
+        else:
+            target_unit_vector = [0, 0]
+
+        # agent direction unit vector
+        agent_unit_vector = [math.cos(math.radians(self.players[1].angle)), math.sin(math.radians(self.players[1].angle))]
+        # error angle between two direction vectors
+        dot_product = target_unit_vector[0] * agent_unit_vector[0] + target_unit_vector[1] * agent_unit_vector[1]
+        error_angle = math.degrees(math.acos(dot_product))
+
+        # increment agent angle and sample recalculated error angle -- identifies whether to turn left or right
+        pos_inc_agent_unit_vector = [math.cos(math.radians(self.players[1].angle + 0.1)), math.sin(math.radians(self.players[1].angle + 0.1))]
+        pos_inc_dot_product = target_unit_vector[0] * pos_inc_agent_unit_vector[0] + target_unit_vector[1] * pos_inc_agent_unit_vector[1]
+        pos_inc_error_angle = math.degrees(math.acos(pos_inc_dot_product))
+        positive_turn_bool = pos_inc_error_angle < error_angle
+
+        error_angle_rate = (error_angle - self.error_angle_prev) / delta_t
+        self.error_angle_prev = error_angle
+
+        kp_angle = 1
+        kd_angle = 0.05
+
+        angle_pid_sum = (kp_angle * error_angle) + (kd_angle * error_angle_rate)
+
+
         error = -distance([x_target, y_target], [x_agent, y_agent])
         self.error_total += error * delta_t
         error_rate = (error - self.error_prev) / delta_t
         self.error_prev = error
+
 
         # error = x_agent - x_target
         # self.error_total += error * delta_t
         # error_rate = (error - self.error_prev) / delta_t
         # self.error_prev = error
 
-        kp = 15
-        ki = 1
-        kd = 30
+        kp = 30
+        ki = 0
+        kd = 50
 
-        instant_pid_sum = (kp * error) + (ki * self.error_total) + (kd * error_rate)
+        distance_pid_sum = (kp * error) + (ki * self.error_total) + (kd * error_rate)
 
         if self.frame_count % self.pwm_pulse_width == 0:
-            # TODO replace 100 with some variable normalizer, tune viscosity coefficient
-            throttle_dutycycle = instant_pid_sum/10000
+
+            throttle_dutycycle = distance_pid_sum/10000
 
             self.generate_pwm_pulse(throttle_dutycycle)
             self.pwm_pulse_index = 0
 
-            # print(self.players[1].calc_speed() / self.players[1].max_speed)
-            # print(viscous_dutycycle)
 
+        if positive_turn_bool and angle_pid_sum > 0 and error_angle > 5:
+            turn = 1
+        elif positive_turn_bool and angle_pid_sum < 0 and error_angle > 5:
+            turn = -1
+        elif not positive_turn_bool and angle_pid_sum > 0 and error_angle > 5:
+            turn = -1
+        elif not positive_turn_bool and angle_pid_sum < 0 and error_angle > 5:
+            turn = 1
+        else:
+            turn = 0
 
-        # print(error, "   ", self.error_total, "   ", error_rate)
-        # print(instant_pid_sum)
+        # if positive_turn_bool:
+        #     turn = 1
+        # elif not positive_turn_bool:
+        #     turn = -1
+        # else:
+        #     turn = 0
 
-        turn = 0
-        throttle = self.pwm_pulse_array[self.pwm_pulse_index]
+        if angle_pid_sum < 50:
+            throttle = self.pwm_pulse_array[self.pwm_pulse_index]
+        else:
+            throttle = 0
+
+        # TODO immobilizer
+        # turn = 0
+        # throttle = 0
+
         afterburn = 0
         trigger = 0
+
 
         self.pwm_pulse_index += 1
 
