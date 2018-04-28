@@ -73,7 +73,7 @@ class Player(GameObject):
         self.energy_display = self.energy
         self.max_energy = self.energy
         self.recharge_rate = 180 # energy/s
-        self.bullet_damage = 250
+        self.bullet_damage = 150
         self.bullet_consumption = 50
         self.afterburn_drain = 300 # energy/s
 
@@ -187,6 +187,10 @@ class Player(GameObject):
 
         textsurface_energy = self.myfont.render(str(self.energy_display), False, energy_color)
         textsurface_name = self.myfont.render('Player ' + str(self.alliance), False, (255, 255, 255))
+
+        if self.alliance == 2:
+            textsurface_name = self.myfont.render('GoodBot', False, (255, 255, 255))
+
         draw_centered(textsurface_energy, screen, [self.transformed_position[0] + 64, self.transformed_position[1] + 50])
         draw_centered(textsurface_name, screen, [self.transformed_position[0] + 64, self.transformed_position[1] + 32])
 
@@ -269,7 +273,7 @@ class Shot(object):
 
         self.screen = screen
         self.bullet_lifetime = 5 # seconds
-        self.bullet_speed = 700
+        self.bullet_speed = 500
 
         #right and left bullets
         bullet_1_position = [position[0] + 25 * math.cos(math.radians(angle - 90)),

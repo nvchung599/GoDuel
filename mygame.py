@@ -20,7 +20,7 @@ UPDATE THIS EVERY TICK
 
 class MyGame(object):
 
-    def __init__(self):
+    def __init__(self, demo_toggle):
         pygame.init()
         pygame.font.init()
         self.width = 1000
@@ -69,7 +69,11 @@ class MyGame(object):
         self.pwm_pulse_array = [0] * self.pwm_pulse_width
         self.frame_count = 0
 
-        self.viscosity_coefficient = 0.005
+        self.viscosity_coefficient = 0.000
+
+        self.distance_prev = 0
+
+        self.demo_toggle = demo_toggle
 
     def run(self):
 
@@ -100,12 +104,26 @@ class MyGame(object):
                 if player.alliance == 1:
                     player.current_action = self.keymap(keys, player.alliance)
                 else:
-                    # player.current_action = self.keymap_auto_1d(delta_t, self.players[0].position[0], self.players[1].position[0])
-                    player.current_action = self.keymap_auto_2d(delta_t,
-                                                                self.players[0].position[0],
-                                                                self.players[0].position[1],
-                                                                self.players[1].position[0],
-                                                                self.players[1].position[1])
+
+                    if self.demo_toggle == 1:
+                        player.current_action = self.keymap_auto_1d(delta_t, self.players[0].position[0], self.players[1].position[0])
+                    elif self.demo_toggle == 2:
+                        player.current_action = self.keymap_auto_2d(delta_t,
+                                                                    self.players[0].position[0],
+                                                                    self.players[0].position[1],
+                                                                    self.players[1].position[0],
+                                                                    self.players[1].position[1])
+                    elif self.demo_toggle == 3:
+                        player.current_action = self.keymap_auto_2d_combat(delta_t,
+                                                                    self.players[0].position[0],
+                                                                    self.players[0].position[1],
+                                                                    self.players[1].position[0],
+                                                                    self.players[1].position[1])
+                    else:
+                        print("ERROR: demo toggle input must be 1, 2, or 3")
+                        exit()
+
+
 
                 player.damp(self.viscosity_coefficient)
                 player.maneuver(delta_t)
@@ -367,7 +385,7 @@ class MyGame(object):
         # TODO tune gains
         kp = 15
         ki = 1
-        kd = 30
+        kd = 50
 
         instant_pid_sum = (kp * error) + (ki * self.error_total) + (kd * error_rate)
 
@@ -405,6 +423,10 @@ class MyGame(object):
         :return: a dictionary mapping specific actions to -1, 0, or 1
         """
 
+        f_offset = 50 # future frames
+        x_target += (self.players[0].velocity[0] - self.players[1].velocity[0]) * delta_t * f_offset
+        y_target += (self.players[0].velocity[1] - self.players[1].velocity[1]) * delta_t * f_offset
+
         distance_magnitude = distance([x_target, y_target], [x_agent, y_agent])
 
         # agent to target unit vector
@@ -434,7 +456,7 @@ class MyGame(object):
         angle_pid_sum = (kp_angle * error_angle) + (kd_angle * error_angle_rate)
 
 
-        error = -distance([x_target, y_target], [x_agent, y_agent])
+        error = - distance_magnitude
         self.error_total += error * delta_t
         error_rate = (error - self.error_prev) / delta_t
         self.error_prev = error
@@ -446,8 +468,8 @@ class MyGame(object):
         # self.error_prev = error
 
         kp = 30
-        ki = 0
-        kd = 50
+        ki = 30
+        kd = 20
 
         distance_pid_sum = (kp * error) + (ki * self.error_total) + (kd * error_rate)
 
@@ -482,12 +504,126 @@ class MyGame(object):
         else:
             throttle = 0
 
-        # TODO immobilizer
+
+        # TODO toggles
         # turn = 0
         # throttle = 0
+        trigger = 0
+        afterburn = 0
+
+        self.pwm_pulse_index += 1
+
+        actions = {'turn': turn, 'throttle': throttle, 'afterburn': afterburn, 'trigger': trigger}
+
+        return actions
+
+    def keymap_auto_2d_combat(self, delta_t, x_target, y_target, x_agent, y_agent):
+
+        """
+        delta_t == seconds per frame
+        """
+
+        distance_magnitude = distance([x_target, y_target], [x_agent, y_agent])
+        distance_rate = (distance_magnitude - self.distance_prev) / delta_t # error is negative, [pixels per second]
+        self.distance_prev = distance_magnitude
+
+        if distance_rate != 0:
+            t_future = distance_magnitude / (500 - distance_rate)
+        else:
+            t_future = 0
+
+        x_target += (self.players[0].velocity[0] - self.players[1].velocity[0]) * t_future
+        y_target += (self.players[0].velocity[1] - self.players[1].velocity[1]) * t_future
+
+
+        # num_future_frames = 40 # future frames
+        # x_target += (self.players[0].velocity[0] - self.players[1].velocity[0]) * delta_t * num_future_frames
+        # y_target += (self.players[0].velocity[1] - self.players[1].velocity[1]) * delta_t * num_future_frames
+
+
+        distance_magnitude = distance([x_target, y_target], [x_agent, y_agent])
+
+        # agent to target unit vector
+        if distance_magnitude != 0:
+            target_unit_vector = [(x_target - x_agent) / distance_magnitude, (y_target - y_agent) / distance_magnitude]
+        else:
+            target_unit_vector = [0, 0]
+
+        # agent direction unit vector
+        agent_unit_vector = [math.cos(math.radians(self.players[1].angle)), math.sin(math.radians(self.players[1].angle))]
+        # error angle between two direction vectors
+        dot_product = target_unit_vector[0] * agent_unit_vector[0] + target_unit_vector[1] * agent_unit_vector[1]
+        error_angle = math.degrees(math.acos(dot_product))
+
+        # increment agent angle and sample recalculated error angle -- identifies whether to turn left or right
+        pos_inc_agent_unit_vector = [math.cos(math.radians(self.players[1].angle + 0.1)), math.sin(math.radians(self.players[1].angle + 0.1))]
+        pos_inc_dot_product = target_unit_vector[0] * pos_inc_agent_unit_vector[0] + target_unit_vector[1] * pos_inc_agent_unit_vector[1]
+        pos_inc_error_angle = math.degrees(math.acos(pos_inc_dot_product))
+        positive_turn_bool = pos_inc_error_angle < error_angle
+
+        error_angle_rate = (error_angle - self.error_angle_prev) / delta_t
+        self.error_angle_prev = error_angle
+
+        kp_angle = 1
+        kd_angle = 0
+
+        angle_pid_sum = (kp_angle * error_angle) + (kd_angle * error_angle_rate)
+
+
+        error = -distance_magnitude
+        self.error_total += error * delta_t
+        error_rate = (error - self.error_prev) / delta_t
+        self.error_prev = error
+
+        kp = 30
+        ki = 1
+        kd = 50
+
+        distance_pid_sum = 5000 + (kp * error) + (ki * self.error_total) + (kd * error_rate)
+
+        if self.frame_count % self.pwm_pulse_width == 0:
+
+            throttle_dutycycle = distance_pid_sum/10000
+
+            self.generate_pwm_pulse(throttle_dutycycle)
+            self.pwm_pulse_index = 0
+
+
+        if positive_turn_bool and angle_pid_sum > 0 and error_angle > 1:
+            turn = 1
+        elif positive_turn_bool and angle_pid_sum < 0 and error_angle > 1:
+            turn = -1
+        elif not positive_turn_bool and angle_pid_sum > 0 and error_angle > 1:
+            turn = -1
+        elif not positive_turn_bool and angle_pid_sum < 0 and error_angle > 1:
+            turn = 1
+        else:
+            turn = 0
+
+        # if positive_turn_bool:
+        #     turn = 1
+        # elif not positive_turn_bool:
+        #     turn = -1
+        # else:
+        #     turn = 0
+
+        if angle_pid_sum < 50:
+            throttle = self.pwm_pulse_array[self.pwm_pulse_index]
+        else:
+            throttle = 0
+
+        if error_angle < 1:
+            trigger = 1
+        else:
+            trigger = 0
+
+        # TODO toggles
+        # turn = 0
+        # throttle = 0
+        # trigger = 0
 
         afterburn = 0
-        trigger = 0
+
 
 
         self.pwm_pulse_index += 1
