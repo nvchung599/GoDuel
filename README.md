@@ -22,6 +22,12 @@ There are three gameplay modes to choose from.
 
 The game never terminates -- close the window when done.
 
+Controls:
+
+* Arrow keys for movement
+* Left ctrl for gun
+* Left shift for afterburn
+
 
 ## Random Notes
 
