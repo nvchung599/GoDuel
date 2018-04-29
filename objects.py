@@ -66,7 +66,7 @@ class Player(GameObject):
         self.alliance = alliance
         self.record = 0
         self.shots = []
-        self.gun_cool_down_timer = 0.12 # seconds
+        self.gun_cool_down_timer = 0.2 # seconds
         self.gun_cool_down_status = 0
         self.alive = True
         self.energy = 1000

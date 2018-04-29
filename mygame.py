@@ -468,8 +468,8 @@ class MyGame(object):
         # self.error_prev = error
 
         kp = 30
-        ki = 30
-        kd = 20
+        ki = 0
+        kd = 10
 
         distance_pid_sum = (kp * error) + (ki * self.error_total) + (kd * error_rate)
 
@@ -576,10 +576,10 @@ class MyGame(object):
         self.error_prev = error
 
         kp = 30
-        ki = 1
+        ki = 0
         kd = 50
 
-        distance_pid_sum = 5000 + (kp * error) + (ki * self.error_total) + (kd * error_rate)
+        distance_pid_sum = 8000 + (kp * error) + (ki * self.error_total) + (kd * error_rate)
 
         if self.frame_count % self.pwm_pulse_width == 0:
 
