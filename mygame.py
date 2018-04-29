@@ -469,7 +469,7 @@ class MyGame(object):
 
         kp = 30
         ki = 0
-        kd = 10
+        kd = 15
 
         distance_pid_sum = (kp * error) + (ki * self.error_total) + (kd * error_rate)
 
