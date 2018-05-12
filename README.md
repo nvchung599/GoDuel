@@ -5,6 +5,8 @@ GoDuel is a top-down shooter minigame modelled off of certain gameplay segments 
 It is intended to serve as a controlled development environment for a
 1 vs. 1 competitive AI.
 
+![follow](https://github.com/nvchung599/GoDuel/blob/master/follow.gif)
+
 Currently, this bot's tracking and targeting algorithms are based on a
 manually tuned PID controller.
 
